@@ -77,8 +77,8 @@ computeRanking xs = MonoidalMap.fromList undefined -- fmap (fmap Sum)
 data SfCreds = SfCreds
   { username :: Text,
     password :: Text,
-    clientId :: Text,
-    clientSecret :: Text
+    client_id :: Text,
+    client_secret :: Text
   }
   deriving (Show, Eq, Generic)
 
@@ -91,7 +91,7 @@ encodeCreds SfCreds {..} =
   [ ("username" := username),
     ("password" := password),
     ("grant_type" := ("password" :: Text)),
-    ("client_id" := clientId),
-    ("client_secret" := clientSecret)
+    ("client_id" := client_id),
+    ("client_secret" := client_secret)
   ]
 
