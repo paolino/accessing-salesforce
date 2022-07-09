@@ -43,6 +43,8 @@ type Record = Map Text Value
 
 type Token = Text
 
+queryRoot x = "https://globalaccess.my.salesforce.com/" <> x
+
 oauthApi :: String
 oauthApi = "services/oauth2/token"
 
@@ -52,7 +54,7 @@ getToken opts = do
   response <-
     fmap (view responseBody) $
       withOpenSSL $
-        postWith opts oauthApi $ encodeCreds creds
+        postWith opts (queryRoot oauthApi) $ encodeCreds creds
   case response ^? key "access_token" . _String of
     Nothing -> error "no token"
     Just txt -> pure txt
@@ -67,7 +69,7 @@ querySalesforce query = do
   let opts = defaults & manager .~ Left (opensslManagerSettings context)
   token <- getToken opts
   let opts' = opts & auth ?~ oauth2Bearer (Text.encodeUtf8 token)
-  getAny opts' "asdnsadnkjenk3"
+  getAny opts' query
 
 type Result = MonoidalMap Account (Sum Usage)
 
