@@ -31,9 +31,13 @@ dependencies:
 - aeson
 - lens-aeson
 - monoidal-containers
+- streaming 
+- foldl
 
 library:
   source-dirs: src
+  ghc-options:
+    - -Wall
 
 executables:
   wreq-exe:
@@ -43,6 +47,7 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -Wall
     dependencies:
     - wreq
 
