@@ -42,6 +42,7 @@ library
     , lens
     , lens-aeson
     , monoidal-containers
+    , pretty-simple
     , streaming
     , text
     , wreq
@@ -65,6 +66,7 @@ executable wreq-exe
     , lens
     , lens-aeson
     , monoidal-containers
+    , pretty-simple
     , streaming
     , text
     , wreq
@@ -89,6 +91,7 @@ test-suite wreq-test
     , lens
     , lens-aeson
     , monoidal-containers
+    , pretty-simple
     , streaming
     , text
     , wreq

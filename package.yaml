@@ -33,6 +33,7 @@ dependencies:
 - monoidal-containers
 - streaming 
 - foldl
+- pretty-simple
 
 library:
   source-dirs: src

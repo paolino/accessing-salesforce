@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -31,6 +32,15 @@ import Network.Wreq
   )
 import OpenSSL.Session (context)
 import Streaming (Of, Stream)
+import Text.Pretty.Simple (pPrint)
+
+-- work with "stack ghci"
+-- to evaluate `example` function a file "creds.json" (sensitive) has to be found in the directory
+-- the content is in 1password and you have to change with your SF credentials
+-- once `example` works, you can proceed with filling in the missing code
+-- eval `exercise` should print the ranking in the end
+
+--- ############ library gently offered by paolino
 
 -- salesforce interaction, pls comment everything
 
@@ -48,9 +58,7 @@ data SfCreds = SfCreds
     client_id :: Text,
     client_secret :: Text
   }
-  deriving (Show, Eq, Generic)
-
-instance FromJSON SfCreds
+  deriving (Show, Eq, Generic, FromJSON)
 
 encodeCreds :: SfCreds -> [FormParam]
 encodeCreds SfCreds {..} =
@@ -79,12 +87,14 @@ getToken opts = do
 
 getAny :: Options -> String -> IO Value
 getAny opts q =
-  fmap (fromMaybe Null . preview (responseBody . _JSON)) $
-    withOpenSSL $ getWith opts q
+  fmap (fromMaybe Null . preview (responseBody . _JSON))
+    . withOpenSSL
+    $ getWith opts q
 
-data Result a = Done [a] | NotDone [a] | Failed Value
+-- not done is not correct, see other excersises for tobias
+data Result = Done [Value] | NotDone [Value] | Failed Value
 
-parseResult :: (FromJSON a, ToJSON a) => Value -> Result a
+parseResult :: Value -> Result
 parseResult response =
   let result = do
         done <- response ^? key "done" . _Bool
@@ -92,17 +102,16 @@ parseResult response =
         pure $ if done then Done xs else NotDone xs
    in fromMaybe (Failed response) result
 
-selectAny :: (FromJSON a, ToJSON a) => Options -> Text -> IO (Result a)
+selectAny :: Options -> Text -> IO Result 
 selectAny opts q = do
   let opts' = set (param "q") [q] opts
   fmap parseResult $ getAny opts' $ queryServices "query"
 
 -- nikola this is a bit more functional, you see we produce a function to execute queries against salesforce
 --
--- tobias, see that as the function is polytyped (the output is polymorphic) we need a newtype
--- incidentally this is somehow necessay with ghc 9 and related to the deep thing
-newtype Query = Query {runQ :: forall a. (FromJSON a, ToJSON a) => Text -> IO (Result a)}
+newtype Query = Query {runQ :: Text -> IO Result}
 
+-- this seems unnecessary but I want to reuse this function in the long term exercises
 querySalesforceX :: (Options -> IO w) -> IO w
 querySalesforceX action = do
   let opts = defaults & manager .~ Left (opensslManagerSettings context)
@@ -115,20 +124,33 @@ querySalesforce = querySalesforceX $
   \opts' -> pure $
     Query $ \qtext -> selectAny opts' qtext
 
--- ########## EXAMPLE
+-- ########## EXAMPLE, to run this you do not have to code, just change the query below if you want
 
+parseAccount :: Value -> Maybe (Text, Text)
+parseAccount v = do 
+  ida <- v ^? key "Id" . _String 
+  account <- v ^? key "Name" . _String
+  pure (ida, account) 
 -- pls notice that querySalesforce is called only once
 example :: IO ()
 example = do
   Query q <- querySalesforce
-  result <- q "select Name from Account limit 5"
+  putStrLn  "\n############### 2 account names, no parsing"
+  result <- q "select Id, Name from Account limit 2"
   case result of
-    Done xs -> mapM_ (print @Value) xs
+    Done xs -> pPrint xs
     NotDone _ -> error "unhandled"
     Failed v -> print v
-  result' <- q queryRamsExample
+  putStrLn "\n############### 5 account names, parsing"
+  result' <- q "select Id, Name from Account limit 5"
   case result' of
-    Done xs -> mapM_ (print @Value) xs
+    Done xs -> pPrint $ parseAccount <$> xs
+    NotDone _ -> error "unhandled"
+    Failed v -> print v
+  putStrLn "\n############### 1 complex things"
+  result'' <- q queryRamsExample
+  case result'' of
+    Done xs -> pPrint xs
     NotDone _ -> error "unhandled"
     Failed v -> print v
 
@@ -142,7 +164,7 @@ queryRamsExample =
   \Year__c\
   \ FROM Monthly_Usage__c\
   \ WHERE Product_Name__c LIKE '%RAM%'\
-  \ ORDER BY YearMonth__c DESC NULLS FIRST limit 50"
+  \ ORDER BY YearMonth__c DESC NULLS FIRST limit 1"
 
 -------- exercise: implement undefineds
 
@@ -172,7 +194,7 @@ exercise = do
   case result' of
     Done xs -> do
       let us = usages $ parseRamConsumption <$> xs
-      mapM_ print $ ranking us
+      pPrint $ ranking us
     NotDone _ -> error "unhandled"
     Failed v -> print v
 
@@ -218,7 +240,7 @@ querySalesforceS :: IO QueryS
 querySalesforceS = querySalesforceX $ \opts' ->
   pure $ QueryS $ \qtext -> selectAnyS opts' qtext
 
--- d) implement the Usages computation using the stream and using Fold package, 
+-- d) implement the Usages computation using the stream and using Fold package,
 -- d1) use `purely` from that package and `fold` from Streaming
 -- d2) use directly `foldMap` from Streaming
 foldUsages :: SFStream Value -> IO (Usages, Value)
